@@ -51,19 +51,19 @@ def _locator(scope, xpath):
     return scope.locator(f"xpath={xpath}")
 
 
-def _wait_visible(scope, xpath, timeout=10000):
+def _wait_visible(scope, xpath, timeout=20000):
     locator = _locator(scope, xpath)
     locator.wait_for(state="visible", timeout=timeout)
     return locator
 
 
-def _click(scope, xpath, timeout=10000):
+def _click(scope, xpath, timeout=20000):
     locator = _wait_visible(scope, xpath, timeout)
     locator.click()
     return locator
 
 
-def _type_text(scope, xpath, value, timeout=10000):
+def _type_text(scope, xpath, value, timeout=20000):
     locator = _wait_visible(scope, xpath, timeout)
     # Use press_sequentially like Selenium's send_keys for readonly fields
     locator.press_sequentially(value, delay=50)
@@ -73,7 +73,7 @@ def _type_text(scope, xpath, value, timeout=10000):
 def _choose_autocomplete(page, scope, xpath, value):
     # Match Selenium behavior: just send keys directly to the element
     locator = _locator(scope, xpath)
-    locator.wait_for(state="visible", timeout=10000)
+    locator.wait_for(state="visible", timeout=20000)
     # Send keys directly (like Selenium's send_keys) - triggers events even on readonly
     locator.press_sequentially(value, delay=50)
     page.wait_for_timeout(1000)
@@ -91,8 +91,8 @@ def _choose_autocomplete(page, scope, xpath, value):
 def _wait_for_loading(page):
     loading = page.locator(f"xpath={LOADING_XPATH}")
     try:
-        loading.wait_for(state="visible", timeout=10000)
-        loading.wait_for(state="hidden", timeout=300000)
+        loading.wait_for(state="visible", timeout=20000)
+        loading.wait_for(state="hidden", timeout=600000)
     except PlaywrightTimeoutError:
         pass
 
@@ -100,7 +100,7 @@ def _wait_for_loading(page):
 def _frame(page):
     # Wait for network to settle after navigation
     try:
-        page.wait_for_load_state("networkidle", timeout=10000)
+        page.wait_for_load_state("networkidle", timeout=20000)
     except PlaywrightTimeoutError:
         pass
     
@@ -130,8 +130,8 @@ def _frame(page):
         target_frame_name = FRAME_NAME
     
     iframe_locator = page.locator(f'iframe[name="{target_frame_name}"]')
-    iframe_locator.wait_for(state="attached", timeout=30000)
-    page.wait_for_timeout(1000)
+    iframe_locator.wait_for(state="attached", timeout=60000)
+    page.wait_for_timeout(2000)
     return page.frame_locator(f'iframe[name="{target_frame_name}"]')
 
 
@@ -147,7 +147,7 @@ def _clean_download_dir():
 
 def _save_download(page, scope, click_xpath, output_path):
     download_trigger = _wait_visible(scope, click_xpath)
-    with page.expect_download(timeout=300000) as download_info:
+    with page.expect_download(timeout=600000) as download_info:
         download_trigger.click()
     download = download_info.value
     download.save_as(output_path)
@@ -221,8 +221,8 @@ if __name__ == "__main__":
                 browser = _launch_browser(playwright)
                 context = browser.new_context(accept_downloads=True, viewport=None)
                 page = context.new_page()
-                page.set_default_timeout(10000)
-                page.set_default_navigation_timeout(300000)
+                page.set_default_timeout(20000)
+                page.set_default_navigation_timeout(600000)
 
                 page.goto(URL, wait_until="domcontentloaded")
 
