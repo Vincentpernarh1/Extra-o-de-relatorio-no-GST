@@ -3,7 +3,7 @@ import os
 import sys
 from tkinter import messagebox
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.getcwd()  # Get the current working directory
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
 CONSOLIDATED_DIR = os.path.join(BASE_DIR, "Arquivos_Consolidados")
 
@@ -17,8 +17,25 @@ else:
 
 if resposta == 'yes':   
     try:
+        # Debug info
+        print(f"BASE_DIR: {BASE_DIR}")
+        print(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
+        print(f"CONSOLIDATED_DIR: {CONSOLIDATED_DIR}")
+        
         # Ensure consolidated directory exists
         os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
+        
+        # Check if there are any Excel files to process
+        if not os.path.exists(DOWNLOAD_DIR):
+            raise FileNotFoundError(f"Pasta {DOWNLOAD_DIR} não encontrada!")
+        
+        excel_files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith('.xlsx')]
+        print(f"Arquivos encontrados: {excel_files}")
+        
+        if len(excel_files) == 0:
+            raise FileNotFoundError("Nenhum arquivo Excel encontrado em Downloads_Auxiliar!")
+        
+        print(f"Processando {len(excel_files)} arquivo(s) Excel...")
                 
         def ler_excel_e_concatenar(caminho_pasta, x, y):
             # Lista todos os arquivos na pasta especificada com a extensão .xlsx

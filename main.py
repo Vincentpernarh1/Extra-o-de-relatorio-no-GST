@@ -3,12 +3,13 @@ import json
 import signal
 import sys
 import subprocess
+import time
 from tkinter import messagebox
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.getcwd()  # Get the current working directory
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
 CONSOLIDATED_DIR = os.path.join(BASE_DIR, "Arquivos_Consolidados")
 URL = "https://grouppurchasing.fiat.com/irj/portal/gssm?standAlone=true&sapDocumentRenderingMode=Edge&HistoryMode=1&TarTitle=Source%20Package%20Management&windowId=WID1703160349761&NavMode=0"
@@ -17,7 +18,7 @@ FRAME_NAME = "ivuFrm_page0ivu1"
 USERNAME = ""
 PASSWORD = ""
 
-with open(os.path.join("Credencial", "usuario.json"), "r") as f:
+with open(os.path.join(BASE_DIR, "Credencial", "usuario.json"), "r") as f:
     credenciais = json.load(f)
     USERNAME = credenciais.get("Usuario", USERNAME)
     PASSWORD = credenciais.get("Senha", PASSWORD)
@@ -204,128 +205,143 @@ def signal_handler(sig, frame_arg):
     print("\n\nInterrompido pelo usuário (Ctrl+C). Encerrando...")
     sys.exit(0)
 
-# Register signal handler for Ctrl+C
-signal.signal(signal.SIGINT, signal_handler)
 
-resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com a extração?")
-if resposta == "yes":
-    os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
-    _clean_download_dir()
+if __name__ == "__main__":
+    # Register signal handler for Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)
 
-    browser = None
-    try:
-        with sync_playwright() as playwright:
-            browser = _launch_browser(playwright)
-            context = browser.new_context(accept_downloads=True, viewport=None)
-            page = context.new_page()
-            page.set_default_timeout(10000)
-            page.set_default_navigation_timeout(300000)
+    resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com a extração?")
+    if resposta == "yes":
+        os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
+        _clean_download_dir()
 
-            page.goto(URL, wait_until="domcontentloaded")
+        browser = None
+        try:
+            with sync_playwright() as playwright:
+                browser = _launch_browser(playwright)
+                context = browser.new_context(accept_downloads=True, viewport=None)
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                page.set_default_navigation_timeout(300000)
 
-            _click(page, LOGIN_XPATH)
-            _type_text(page, LOGIN_XPATH, USERNAME)
-            page.wait_for_timeout(1000)
-            _click(page, PASSWORD_XPATH)
-            _type_text(page, PASSWORD_XPATH, PASSWORD)
-            page.wait_for_timeout(1000)
-            _click(page, LOGIN_BUTTON_XPATH)
-            page.wait_for_timeout(3000)
+                page.goto(URL, wait_until="domcontentloaded")
 
-            _click(page, APPLICATION_XPATH)
-            page.wait_for_timeout(1000)
-            _click(page, GLOBAL_SOURCING_TOOL_XPATH)
-            page.wait_for_timeout(1000)
+                _click(page, LOGIN_XPATH)
+                _type_text(page, LOGIN_XPATH, USERNAME)
+                page.wait_for_timeout(1000)
+                _click(page, PASSWORD_XPATH)
+                _type_text(page, PASSWORD_XPATH, PASSWORD)
+                page.wait_for_timeout(1000)
+                _click(page, LOGIN_BUTTON_XPATH)
+                page.wait_for_timeout(3000)
+
+                _click(page, APPLICATION_XPATH)
+                page.wait_for_timeout(1000)
+                _click(page, GLOBAL_SOURCING_TOOL_XPATH)
+                page.wait_for_timeout(1000)
+                
+                _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
+                page.wait_for_timeout(1000)
+
+                frame = _frame(page)
+                _click(frame, REPORTING_PACKAGE_XPATH)
+                page.wait_for_timeout(1000)
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _click(frame, REPORTING_DISPLAY_XPATH)
+                page.wait_for_timeout(5000)
+                _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
+                page.wait_for_timeout(1000)
+                _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
+                page.wait_for_timeout(1000)
+                _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
+                page.wait_for_timeout(2000)
+                _click(frame, REPORTING_SEARCH_XPATH)
+                page.wait_for_timeout(5000)
+                _save_download(
+                    page,
+                    frame,
+                    REPORTING_DOWNLOAD_XPATH,
+                    os.path.join(DOWNLOAD_DIR, "01_source_package_management.xlsx"),
+                )
+                page.wait_for_timeout(5000)
+
+                _click(page, BREADCRUMB_GST_XPATH)
+                page.wait_for_timeout(1000)
+                _click(page, SOURCING_MANAGEMENT_XPATH)
+                page.wait_for_timeout(1000)
+
+                frame = _frame(page)
+                _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
+                page.wait_for_timeout(3000)
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
+                page.wait_for_timeout(1000)
+                _type_text(frame, SOURCING_REGION_XPATH, "Global")
+                page.wait_for_timeout(1000)
+                _type_text(frame, SOURCING_VIEW_XPATH, "RPA")
+                page.wait_for_timeout(3000)
+                _click(frame, SOURCING_SEARCH_XPATH)
+                page.wait_for_timeout(3000)
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _save_download(
+                    page,
+                    frame,
+                    SOURCING_DOWNLOAD_XPATH,
+                    os.path.join(DOWNLOAD_DIR, "02_sourcing_management_global.xlsx"),
+                )
+                page.wait_for_timeout(3000)
+
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _type_text(frame, SOURCING_REGION_XPATH, "LATAM")
+                page.wait_for_timeout(1000)
+                _click(frame, SOURCING_SEARCH_XPATH)
+                page.wait_for_timeout(3000)
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _save_download(
+                    page,
+                    frame,
+                    SOURCING_DOWNLOAD_XPATH,
+                    os.path.join(DOWNLOAD_DIR, "03_sourcing_management_latam.xlsx"),
+                )
+                page.wait_for_timeout(3000)
+
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _type_text(frame, SOURCING_REGION_XPATH, "Neutral")
+                page.wait_for_timeout(1000)
+                _click(frame, SOURCING_SEARCH_XPATH)
+                page.wait_for_timeout(3000)
+                _wait_for_loading(page)
+                page.wait_for_timeout(1000)
+                _save_download(
+                    page,
+                    frame,
+                    SOURCING_DOWNLOAD_XPATH,
+                    os.path.join(DOWNLOAD_DIR, "04_sourcing_management_neutral.xlsx"),
+                )
+                page.wait_for_timeout(3000)
+
+                # Cleanup in proper order
+                page.close()
+                context.close()
             
-            _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
-            page.wait_for_timeout(1000)
-
-            frame = _frame(page)
-            _click(frame, REPORTING_PACKAGE_XPATH)
-            page.wait_for_timeout(1000)
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _click(frame, REPORTING_DISPLAY_XPATH)
-            page.wait_for_timeout(5000)
-            _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
-            page.wait_for_timeout(1000)
-            _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
-            page.wait_for_timeout(1000)
-            _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
-            page.wait_for_timeout(2000)
-            _click(frame, REPORTING_SEARCH_XPATH)
-            page.wait_for_timeout(5000)
-            _save_download(
-                page,
-                frame,
-                REPORTING_DOWNLOAD_XPATH,
-                os.path.join(DOWNLOAD_DIR, "01_source_package_management.xlsx"),
-            )
-            page.wait_for_timeout(5000)
-
-            _click(page, BREADCRUMB_GST_XPATH)
-            page.wait_for_timeout(1000)
-            _click(page, SOURCING_MANAGEMENT_XPATH)
-            page.wait_for_timeout(1000)
-
-            frame = _frame(page)
-            _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
-            page.wait_for_timeout(3000)
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
-            page.wait_for_timeout(1000)
-            _type_text(frame, SOURCING_REGION_XPATH, "Global")
-            page.wait_for_timeout(1000)
-            _type_text(frame, SOURCING_VIEW_XPATH, "RPA")
-            page.wait_for_timeout(3000)
-            _click(frame, SOURCING_SEARCH_XPATH)
-            page.wait_for_timeout(3000)
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _save_download(
-                page,
-                frame,
-                SOURCING_DOWNLOAD_XPATH,
-                os.path.join(DOWNLOAD_DIR, "02_sourcing_management_global.xlsx"),
-            )
-            page.wait_for_timeout(3000)
-
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _type_text(frame, SOURCING_REGION_XPATH, "LATAM")
-            page.wait_for_timeout(1000)
-            _click(frame, SOURCING_SEARCH_XPATH)
-            page.wait_for_timeout(3000)
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _save_download(
-                page,
-                frame,
-                SOURCING_DOWNLOAD_XPATH,
-                os.path.join(DOWNLOAD_DIR, "03_sourcing_management_latam.xlsx"),
-            )
-            page.wait_for_timeout(3000)
-
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _type_text(frame, SOURCING_REGION_XPATH, "Neutral")
-            page.wait_for_timeout(1000)
-            _click(frame, SOURCING_SEARCH_XPATH)
-            page.wait_for_timeout(3000)
-            _wait_for_loading(page)
-            page.wait_for_timeout(1000)
-            _save_download(
-                page,
-                frame,
-                SOURCING_DOWNLOAD_XPATH,
-                os.path.join(DOWNLOAD_DIR, "04_sourcing_management_neutral.xlsx"),
-            )
-            page.wait_for_timeout(3000)
-
-            # Cleanup in proper order
-            page.close()
-            context.close()
+            # Give files time to fully write to disk
+            time.sleep(2)
+            
+            # Verify downloads completed
+            expected_files = [
+                "01_source_package_management.xlsx",
+                "02_sourcing_management_global.xlsx",
+                "03_sourcing_management_latam.xlsx",
+                "04_sourcing_management_neutral.xlsx"
+            ]
+            downloaded = [f for f in expected_files if os.path.exists(os.path.join(DOWNLOAD_DIR, f))]
+            print(f"Arquivos baixados: {len(downloaded)}/4")
             
             messagebox.showinfo("Sucesso", "Extração realizada com sucesso !")
             
@@ -339,7 +355,11 @@ if resposta == "yes":
                 try:
                     # Run main_organizar.py to process the files (skip confirmation dialog)
                     organizar_script = os.path.join(BASE_DIR, "main_organizar.py")
-                    subprocess.run([sys.executable, organizar_script, '--skip-confirmation'], check=True)
+                    subprocess.run(
+                        [sys.executable, organizar_script, '--skip-confirmation'],
+                        cwd=BASE_DIR,  # Ensure it runs in the correct directory
+                        check=True
+                    )
                 except subprocess.CalledProcessError:
                     messagebox.showerror("Erro", "Erro ao processar os arquivos!")
                     messagebox.showinfo("Aviso", "Verifique os arquivos em Downloads_Auxiliar e tente novamente.")
@@ -348,12 +368,12 @@ if resposta == "yes":
             else:
                 messagebox.showinfo("Info", "Você pode processar os arquivos depois executando main_organizar.py")
                 
-    except KeyboardInterrupt:
-        print("\n\nExtração cancelada pelo usuário.")
-        sys.exit(0)
-    except Exception as exc:
-        print(exc)
-        messagebox.showerror("Erro", "Erro ao executar a extração !")
-        messagebox.showinfo("Aviso", "Tente novamente! Caso o erro persista, entre em contato com o suporte.")
-else:
-    messagebox.showwarning("Cancelado", "Operação cancelada !")
+        except KeyboardInterrupt:
+            print("\n\nExtração cancelada pelo usuário.")
+            sys.exit(0)
+        except Exception as exc:
+            print(exc)
+            messagebox.showerror("Erro", "Erro ao executar a extração !")
+            messagebox.showinfo("Aviso", "Tente novamente! Caso o erro persista, entre em contato com o suporte.")
+    else:
+        messagebox.showwarning("Cancelado", "Operação cancelada !")
