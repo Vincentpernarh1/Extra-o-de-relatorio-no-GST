@@ -1,10 +1,25 @@
 import pandas as pd
 import os
+import sys
 from tkinter import messagebox
 
-resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com o tratamento?")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
+CONSOLIDATED_DIR = os.path.join(BASE_DIR, "Arquivos_Consolidados")
+
+# Check if called with --skip-confirmation argument (when called from main.py)
+skip_confirmation = '--skip-confirmation' in sys.argv
+
+if skip_confirmation:
+    resposta = 'yes'
+else:
+    resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com o tratamento?")
+
 if resposta == 'yes':   
-    try:        
+    try:
+        # Ensure consolidated directory exists
+        os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
+                
         def ler_excel_e_concatenar(caminho_pasta, x, y):
             # Lista todos os arquivos na pasta especificada com a extensão .xlsx
             arquivos_excel = [arquivo for arquivo in os.listdir(caminho_pasta) if arquivo.endswith('.xlsx')]
@@ -34,33 +49,50 @@ if resposta == 'yes':
 
             return df_concatenado
 
-        # Substitua 'caminho_da_sua_pasta' pelo caminho real da pasta contendo os arquivos CSV
-        caminho_pasta = 'Downloads_Auxiliar'
-
         # Chama a função para ler e concatenar os arquivos CSV
-        df_source_package_management = ler_excel_e_concatenar(caminho_pasta, None, 1)
-        df_sourcing_management = ler_excel_e_concatenar(caminho_pasta, 1, None)
+        df_source_package_management = ler_excel_e_concatenar(DOWNLOAD_DIR, None, 1)
+        df_sourcing_management = ler_excel_e_concatenar(DOWNLOAD_DIR, 1, None)
 
-        # Filtrando as linhas
-        filtro = (df_source_package_management['Status'] == 'Technical Data Completed') & (df_source_package_management['Tipo'] != 'TAG')
-        df_source_package_mananegement_filtred = df_source_package_management[filtro]
-        # df_source_package_mananegement_filtred = df_source_package_mananegement_filtred[["Source Package #", "Commodity", "Descrição", "Modelo", 
-        #                                                                                     "Version", "Tipo", "Initiator", "Nome do Comprador 1", "Status"]]
-        df_source_package_mananegement_filtred = df_source_package_mananegement_filtred[["Source Package #", "Engineering Unit", "Descrição", "Modelo", 
-                                                                                            "Version", "Tipo", "Initiator", "Nome do Comprador 1", "Status"]]
 
-        df_sourcing_management = df_sourcing_management[['Sourcing Process #' ,'Modelo', 'Nome Comprador', 'Sourcing Status',
-                                                            'LRB/LSS Status', 'Sourcing Step', 'LRB/LSS Sent to SCM On',
-                                                            'Sourcing Type']]
+        # Filtrando as linhas - check if columns exist
+        if 'Status' in df_source_package_management.columns and 'Tipo' in df_source_package_management.columns:
+            filtro = (df_source_package_management['Status'] == 'Technical Data Completed') & (df_source_package_management['Tipo'] != 'TAG')
+            df_source_package_mananegement_filtred = df_source_package_management[filtro]
+        elif 'Status' in df_source_package_management.columns:
+            # If only Status exists
+            filtro = (df_source_package_management['Status'] == 'Technical Data Completed')
+            df_source_package_mananegement_filtred = df_source_package_management[filtro]
+        else:
+            # No filter if columns don't exist
+            df_source_package_mananegement_filtred = df_source_package_management
+        
+        # Select columns that actually exist
+        required_cols_spm = ["Source Package #", "Engineering Unit", "Descrição", "Modelo", 
+                             "Version", "Tipo", "Initiator", "Nome do Comprador 1", "Status"]
+        available_cols_spm = [col for col in required_cols_spm if col in df_source_package_mananegement_filtred.columns]
+        
+        if available_cols_spm:
+            df_source_package_mananegement_filtred = df_source_package_mananegement_filtred[available_cols_spm]
+        
+        # Filter Sourcing Management columns
+        required_cols_sm = ['Sourcing Process #', 'Modelo', 'Nome Comprador', 'Sourcing Status',
+                            'LRB/LSS Status', 'Sourcing Step', 'LRB/LSS Sent to SCM On', 'Sourcing Type']
+        available_cols_sm = [col for col in required_cols_sm if col in df_sourcing_management.columns]
+        
+        if available_cols_sm:
+            df_sourcing_management = df_sourcing_management[available_cols_sm]
 
         # Salvando em excel
-        df_source_package_mananegement_filtred.to_excel('Arquivos_Consolidados/Source_Package_Management.xlsx', index=False)
-        df_sourcing_management.to_excel('Arquivos_Consolidados/Sourcing_Management.xlsx', index=False)
+        spm_path = os.path.join(CONSOLIDATED_DIR, 'Source_Package_Management.xlsx')
+        sm_path = os.path.join(CONSOLIDATED_DIR, 'Sourcing_Management.xlsx')
+        
+        df_source_package_mananegement_filtred.to_excel(spm_path, index=False)
+        df_sourcing_management.to_excel(sm_path, index=False)
 
 
 
         # Importe a biblioteca pandas e crie um objeto pd.ExcelWriter para criar um arquivo Excel usando o XlsxWriter como mecanismo de escrita.
-        writer = pd.ExcelWriter('Arquivos_Consolidados/Source_Package_Management.xlsx', engine='xlsxwriter')
+        writer = pd.ExcelWriter(spm_path, engine='xlsxwriter')
 
         # Salve um DataFrame chamado pivot_df na primeira aba do arquivo Excel.
         df_source_package_mananegement_filtred.to_excel(writer, sheet_name='Primeira_Aba', index=False)
@@ -112,7 +144,7 @@ if resposta == 'yes':
 
 
         # Importe a biblioteca pandas e crie um objeto pd.ExcelWriter para criar um arquivo Excel usando o XlsxWriter como mecanismo de escrita.
-        writer = pd.ExcelWriter('Arquivos_Consolidados/Sourcing_Management.xlsx', engine='xlsxwriter')
+        writer = pd.ExcelWriter(sm_path, engine='xlsxwriter')
 
         # Salve um DataFrame chamado pivot_df na primeira aba do arquivo Excel.
         df_sourcing_management.to_excel(writer, sheet_name='Primeira_Aba', index=False)
@@ -162,8 +194,9 @@ if resposta == 'yes':
 
         messagebox.showinfo("Sucesso", "Tratamento realizado com sucesso!")
 
-    except:
-        messagebox.showerror("Erro", "Erro ao executar o tratamento!")
+    except Exception as exc:
+        print(f"Erro detalhado: {exc}")
+        messagebox.showerror("Erro", f"Erro ao executar o tratamento: {exc}")
         messagebox.showinfo("Aviso", "Tente novamente! Caso o erro persista, entre em contato com o suporte.")
 
 else:

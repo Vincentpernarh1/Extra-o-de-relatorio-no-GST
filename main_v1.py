@@ -1,3 +1,6 @@
+# Code not to be use as its version gets expired, but to be used as a base for the next versions, in case of any problem with the new code.
+
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -39,14 +42,14 @@ if resposta == 'yes':
         element_user = wait.until(EC.visibility_of_element_located((By.XPATH, '//*[@id="logonuidfield"]')))
         element_user = driver.find_element(By.XPATH, '//*[@id="logonuidfield"]')
         ############ LOGIN AQUI ############
-        element_user.send_keys('SF98281')
+        element_user.send_keys('SD62318')
 
         time.sleep(1)
 
         # Aguardando até que o elemento esteja visível e clica nele
         element_password = driver.find_element(By.XPATH, '//*[@id="logonpassfield"]')
         ############ SENHA AQUI ############
-        element_password.send_keys('Cruzeiro1963')
+        element_password.send_keys('Stellantis1997')
 
         time.sleep(1)
 
