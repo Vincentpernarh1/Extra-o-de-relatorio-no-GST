@@ -219,7 +219,7 @@ if __name__ == "__main__":
         try:
             with sync_playwright() as playwright:
                 browser = _launch_browser(playwright)
-                context = browser.new_context(accept_downloads=True, viewport=None)
+                context = browser.new_context(accept_downloads=True, viewport=None, locale="pt-BR")
                 page = context.new_page()
                 page.set_default_timeout(20000)
                 page.set_default_navigation_timeout(600000)
@@ -231,31 +231,36 @@ if __name__ == "__main__":
                 page.wait_for_timeout(1000)
                 _click(page, PASSWORD_XPATH)
                 _type_text(page, PASSWORD_XPATH, PASSWORD)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 _click(page, LOGIN_BUTTON_XPATH)
                 page.wait_for_timeout(3000)
 
                 _click(page, APPLICATION_XPATH)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 _click(page, GLOBAL_SOURCING_TOOL_XPATH)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 
                 _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(3000)
 
                 frame = _frame(page)
                 _click(frame, REPORTING_PACKAGE_XPATH)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(3000)
                 _wait_for_loading(page)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(2000)
                 _click(frame, REPORTING_DISPLAY_XPATH)
                 page.wait_for_timeout(5000)
                 _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
-                page.wait_for_timeout(1000)
-                _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
-                page.wait_for_timeout(1000)
-                _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
                 page.wait_for_timeout(2000)
+               
+                _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
+                
+                
+                print("getting some erro here")
+                
+                page.wait_for_timeout(3000)
+                _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
+                page.wait_for_timeout(3000)
                 _click(frame, REPORTING_SEARCH_XPATH)
                 page.wait_for_timeout(5000)
                 _save_download(
