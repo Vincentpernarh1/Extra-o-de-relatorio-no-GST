@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 import signal
@@ -6,8 +7,7 @@ import subprocess
 import time
 from tkinter import messagebox
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 BASE_DIR = os.getcwd()  # Get the current working directory
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
@@ -51,61 +51,61 @@ def _locator(scope, xpath):
     return scope.locator(f"xpath={xpath}")
 
 
-def _wait_visible(scope, xpath, timeout=20000):
+async def _wait_visible(scope, xpath, timeout=20000):
     locator = _locator(scope, xpath)
-    locator.wait_for(state="visible", timeout=timeout)
+    await locator.wait_for(state="visible", timeout=timeout)
     return locator
 
 
-def _click(scope, xpath, timeout=20000):
-    locator = _wait_visible(scope, xpath, timeout)
-    locator.click()
+async def _click(scope, xpath, timeout=20000):
+    locator = await _wait_visible(scope, xpath, timeout)
+    await locator.click()
     return locator
 
 
-def _type_text(scope, xpath, value, timeout=20000):
-    locator = _wait_visible(scope, xpath, timeout)
+async def _type_text(scope, xpath, value, timeout=20000):
+    locator = await _wait_visible(scope, xpath, timeout)
     # Use press_sequentially like Selenium's send_keys for readonly fields
-    locator.press_sequentially(value, delay=50)
+    await locator.press_sequentially(value, delay=50)
     return locator
 
 
-def _choose_autocomplete(page, scope, xpath, value):
+async def _choose_autocomplete(page, scope, xpath, value):
     # Match Selenium behavior: just send keys directly to the element
     locator = _locator(scope, xpath)
-    locator.wait_for(state="visible", timeout=20000)
+    await locator.wait_for(state="visible", timeout=20000)
     # Send keys directly (like Selenium's send_keys) - triggers events even on readonly
-    locator.press_sequentially(value, delay=50)
-    page.wait_for_timeout(1000)
+    await locator.press_sequentially(value, delay=50)
+    await page.wait_for_timeout(1000)
     # Use global keyboard actions like Selenium's ActionChains
-    page.keyboard.press("Enter")
-    page.wait_for_timeout(1000)
-    page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(1000)
-    page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(1000)
-    page.keyboard.press("Enter")
-    page.wait_for_timeout(1000)
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(1000)
+    await page.keyboard.press("ArrowUp")
+    await page.wait_for_timeout(1000)
+    await page.keyboard.press("ArrowUp")
+    await page.wait_for_timeout(1000)
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(1000)
 
 
-def _wait_for_loading(page):
+async def _wait_for_loading(page):
     loading = page.locator(f"xpath={LOADING_XPATH}")
     try:
-        loading.wait_for(state="visible", timeout=20000)
-        loading.wait_for(state="hidden", timeout=600000)
+        await loading.wait_for(state="visible", timeout=60000)
+        await loading.wait_for(state="hidden", timeout=600000)
     except PlaywrightTimeoutError:
         pass
 
 
-def _frame(page):
+async def _frame(page):
     # Wait for network to settle after navigation
     try:
-        page.wait_for_load_state("networkidle", timeout=20000)
+        await page.wait_for_load_state("networkidle", timeout=20000)
     except PlaywrightTimeoutError:
         pass
     
     # Give extra time for iframe to be injected
-    page.wait_for_timeout(3000)
+    await page.wait_for_timeout(3000)
     
     # Find the iframe by various possible names
     all_frames = page.frames
@@ -130,8 +130,8 @@ def _frame(page):
         target_frame_name = FRAME_NAME
     
     iframe_locator = page.locator(f'iframe[name="{target_frame_name}"]')
-    iframe_locator.wait_for(state="attached", timeout=60000)
-    page.wait_for_timeout(2000)
+    await iframe_locator.wait_for(state="attached", timeout=60000)
+    await page.wait_for_timeout(2000)
     return page.frame_locator(f'iframe[name="{target_frame_name}"]')
 
 
@@ -145,12 +145,21 @@ def _clean_download_dir():
                 pass
 
 
-def _save_download(page, scope, click_xpath, output_path):
-    download_trigger = _wait_visible(scope, click_xpath)
-    with page.expect_download(timeout=600000) as download_info:
-        download_trigger.click()
-    download = download_info.value
-    download.save_as(output_path)
+async def _clear_and_type(scope, xpath, value, timeout=20000):
+    """Selects all existing content with Ctrl+A then types the new value."""
+    locator = await _wait_visible(scope, xpath, timeout)
+    await locator.click()
+    await locator.press("Control+a")
+    await locator.press("Delete")
+    await locator.press_sequentially(value, delay=50)
+    return locator
+
+
+async def _save_download(page, scope, click_xpath, output_path):
+    async with page.expect_download(timeout=600000) as download_info:
+        await _click(scope, click_xpath, timeout=60000)
+    download = await download_info.value
+    await download.save_as(output_path)
 
 
 def get_playwright_browser_path():
@@ -176,7 +185,7 @@ def get_playwright_browser_path():
     return chromium_path
 
 
-def _launch_browser(playwright):
+async def _launch_browser(playwright):
     launch_options = {
         "headless": False,
         "args": ["--start-maximized"],
@@ -186,19 +195,206 @@ def _launch_browser(playwright):
     try:
         executable_path = get_playwright_browser_path()
         launch_options["executable_path"] = executable_path
-        return playwright.chromium.launch(**launch_options)
+        return await playwright.chromium.launch(**launch_options)
     except (FileNotFoundError, Exception):
         # Fallback to system Chrome or installed Chromium
         try:
-            return playwright.chromium.launch(channel="chrome", **launch_options)
+            return await playwright.chromium.launch(channel="chrome", **launch_options)
         except Exception:
             try:
-                return playwright.chromium.launch(**launch_options)
+                return await playwright.chromium.launch(**launch_options)
             except Exception as exc:
                 raise RuntimeError(
                     "Nao foi possivel iniciar o navegador com Playwright. "
                     "Verifique se o Google Chrome esta instalado ou execute 'playwright install chromium'."
                 ) from exc
+
+
+async def _new_page(context):
+    page = await context.new_page()
+    page.set_default_timeout(20000)
+    page.set_default_navigation_timeout(600000)
+    return page
+
+
+async def run_source_package_report(context):
+    page = await _new_page(context)
+    await page.goto(URL, wait_until="domcontentloaded")
+    await page.wait_for_timeout(2000)
+
+    await _click(page, APPLICATION_XPATH)
+    await page.wait_for_timeout(2000)
+    await _click(page, GLOBAL_SOURCING_TOOL_XPATH)
+    await page.wait_for_timeout(2000)
+    await _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
+    await page.wait_for_timeout(3000)
+
+    frame = await _frame(page)
+    await _click(frame, REPORTING_PACKAGE_XPATH)
+    await page.wait_for_timeout(3000)
+    await _wait_for_loading(page)
+    await page.wait_for_timeout(2000)
+    await _click(frame, REPORTING_DISPLAY_XPATH)
+    await page.wait_for_timeout(5000)
+    await _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
+    await page.wait_for_timeout(2000)
+    await _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
+    await page.wait_for_timeout(3000)
+    await _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
+    await page.wait_for_timeout(3000)
+    await _click(frame, REPORTING_SEARCH_XPATH)
+    await page.wait_for_timeout(5000)
+    await _save_download(
+        page,
+        frame,
+        REPORTING_DOWNLOAD_XPATH,
+        os.path.join(DOWNLOAD_DIR, "01_source_package_management.xlsx"),
+    )
+    await page.close()
+
+
+async def run_sourcing_reports(context):
+    """Runs all 3 sourcing region reports sequentially on one page.
+    The SAP portal maintains server-side session state per cookie session,
+    so concurrent search requests would overwrite each other's filters.
+    """
+    page = await _new_page(context)
+    await page.goto(URL, wait_until="domcontentloaded")
+    await page.wait_for_timeout(2000)
+
+    await _click(page, APPLICATION_XPATH)
+    await page.wait_for_timeout(2000)
+    await _click(page, GLOBAL_SOURCING_TOOL_XPATH)
+    await page.wait_for_timeout(2000)
+    await _click(page, SOURCING_MANAGEMENT_XPATH)
+    await page.wait_for_timeout(2000)
+
+    frame = await _frame(page)
+    await _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
+    await page.wait_for_timeout(3000)
+    await _wait_for_loading(page)
+    await page.wait_for_timeout(1000)
+    await _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
+    await page.wait_for_timeout(1000)
+    await _type_text(frame, SOURCING_VIEW_XPATH, "RPA")
+    await page.wait_for_timeout(1000)
+
+    regions = [
+        ("Global",  "02_sourcing_management_global.xlsx"),
+        ("LATAM",   "03_sourcing_management_latam.xlsx"),
+        ("Neutral", "04_sourcing_management_neutral.xlsx"),
+    ]
+    for region, filename in regions:
+        # triple_click selects any existing text before typing the new region
+        await _clear_and_type(frame, SOURCING_REGION_XPATH, region)
+        await page.wait_for_timeout(1000)
+        await _click(frame, SOURCING_SEARCH_XPATH)
+        await page.wait_for_timeout(3000)
+        await _wait_for_loading(page)
+        await page.wait_for_timeout(1000)
+        await _save_download(
+            page,
+            frame,
+            SOURCING_DOWNLOAD_XPATH,
+            os.path.join(DOWNLOAD_DIR, filename),
+        )
+        await page.wait_for_timeout(3000)
+
+    await page.close()
+
+
+async def async_main():
+    os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
+    _clean_download_dir()
+
+    async with async_playwright() as playwright:
+        browser = await _launch_browser(playwright)
+        context = await browser.new_context(accept_downloads=True, viewport=None, locale="pt-BR")
+        page = await _new_page(context)
+
+        await page.goto(URL, wait_until="domcontentloaded")
+        await _click(page, LOGIN_XPATH)
+        await _type_text(page, LOGIN_XPATH, USERNAME)
+        await page.wait_for_timeout(1000)
+        await _click(page, PASSWORD_XPATH)
+        await _type_text(page, PASSWORD_XPATH, PASSWORD)
+        await page.wait_for_timeout(2000)
+        await _click(page, LOGIN_BUTTON_XPATH)
+        await page.wait_for_timeout(3000)
+
+        # --- Report 01: Source Package Management ---
+        await _click(page, APPLICATION_XPATH)
+        await page.wait_for_timeout(2000)
+        await _click(page, GLOBAL_SOURCING_TOOL_XPATH)
+        await page.wait_for_timeout(2000)
+        await _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
+        await page.wait_for_timeout(3000)
+
+        frame = await _frame(page)
+        await _click(frame, REPORTING_PACKAGE_XPATH)
+        await page.wait_for_timeout(3000)
+        await _wait_for_loading(page)
+        await page.wait_for_timeout(2000)
+        await _click(frame, REPORTING_DISPLAY_XPATH)
+        await page.wait_for_timeout(5000)
+        await _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
+        await page.wait_for_timeout(2000)
+        await _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
+        await page.wait_for_timeout(3000)
+        await _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
+        await page.wait_for_timeout(3000)
+        await _click(frame, REPORTING_SEARCH_XPATH)
+        await page.wait_for_timeout(5000)
+        await _save_download(
+            page,
+            frame,
+            REPORTING_DOWNLOAD_XPATH,
+            os.path.join(DOWNLOAD_DIR, "01_source_package_management.xlsx"),
+        )
+        await page.wait_for_timeout(3000)
+
+        # --- Reports 02-04: Sourcing Management (Global, LATAM, Neutral) ---
+        await _click(page, BREADCRUMB_GST_XPATH)
+        await page.wait_for_timeout(2000)
+        await _click(page, SOURCING_MANAGEMENT_XPATH)
+        await page.wait_for_timeout(2000)
+
+        frame = await _frame(page)
+        await _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
+        await page.wait_for_timeout(3000)
+        await _wait_for_loading(page)
+        await page.wait_for_timeout(1000)
+        await _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
+        await page.wait_for_timeout(1000)
+        await _type_text(frame, SOURCING_VIEW_XPATH, "RPA")
+        await page.wait_for_timeout(1000)
+
+        regions = [
+            ("Global",  "02_sourcing_management_global.xlsx"),
+            ("LATAM",   "03_sourcing_management_latam.xlsx"),
+            ("Neutral", "04_sourcing_management_neutral.xlsx"),
+        ]
+        for region, filename in regions:
+            await _clear_and_type(frame, SOURCING_REGION_XPATH, region)
+            await page.wait_for_timeout(1000)
+            await _click(frame, SOURCING_SEARCH_XPATH)
+            await page.wait_for_timeout(3000)
+            await _wait_for_loading(page)
+            await page.wait_for_timeout(1000)
+            # await page.pause()  # DEBUG: inspect the page before download click
+            await _save_download(
+                page,
+                frame,
+                SOURCING_DOWNLOAD_XPATH,
+                os.path.join(DOWNLOAD_DIR, filename),
+            )
+            await page.wait_for_timeout(3000)
+            await _wait_for_loading(page)  # SAP post-download processing
+            await page.wait_for_timeout(1000)
+
+        await page.close()
+        await context.close()
+        await browser.close()
 
 
 def signal_handler(sig, frame_arg):
@@ -212,132 +408,12 @@ if __name__ == "__main__":
 
     resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com a extração?")
     if resposta == "yes":
-        os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
-        _clean_download_dir()
-
-        browser = None
         try:
-            with sync_playwright() as playwright:
-                browser = _launch_browser(playwright)
-                context = browser.new_context(accept_downloads=True, viewport=None, locale="pt-BR")
-                page = context.new_page()
-                page.set_default_timeout(20000)
-                page.set_default_navigation_timeout(600000)
+            asyncio.run(async_main())
 
-                page.goto(URL, wait_until="domcontentloaded")
-
-                _click(page, LOGIN_XPATH)
-                _type_text(page, LOGIN_XPATH, USERNAME)
-                page.wait_for_timeout(1000)
-                _click(page, PASSWORD_XPATH)
-                _type_text(page, PASSWORD_XPATH, PASSWORD)
-                page.wait_for_timeout(2000)
-                _click(page, LOGIN_BUTTON_XPATH)
-                page.wait_for_timeout(3000)
-
-                _click(page, APPLICATION_XPATH)
-                page.wait_for_timeout(2000)
-                _click(page, GLOBAL_SOURCING_TOOL_XPATH)
-                page.wait_for_timeout(2000)
-                
-                _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
-                page.wait_for_timeout(3000)
-
-                frame = _frame(page)
-                _click(frame, REPORTING_PACKAGE_XPATH)
-                page.wait_for_timeout(3000)
-                _wait_for_loading(page)
-                page.wait_for_timeout(2000)
-                _click(frame, REPORTING_DISPLAY_XPATH)
-                page.wait_for_timeout(5000)
-                _choose_autocomplete(page, frame, REPORTING_MODIFICATION_XPATH, "Semana Anterior")
-                page.wait_for_timeout(2000)
-               
-                _type_text(frame, REPORTING_STATUS_XPATH, "Technical Data Completed")
-                
-                
-                print("getting some erro here")
-                
-                page.wait_for_timeout(3000)
-                _type_text(frame, REPORTING_VIEW_XPATH, "RPA")
-                page.wait_for_timeout(3000)
-                _click(frame, REPORTING_SEARCH_XPATH)
-                page.wait_for_timeout(5000)
-                _save_download(
-                    page,
-                    frame,
-                    REPORTING_DOWNLOAD_XPATH,
-                    os.path.join(DOWNLOAD_DIR, "01_source_package_management.xlsx"),
-                )
-                page.wait_for_timeout(5000)
-
-                _click(page, BREADCRUMB_GST_XPATH)
-                page.wait_for_timeout(1000)
-                _click(page, SOURCING_MANAGEMENT_XPATH)
-                page.wait_for_timeout(1000)
-
-                frame = _frame(page)
-                _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
-                page.wait_for_timeout(3000)
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
-                page.wait_for_timeout(1000)
-                _type_text(frame, SOURCING_REGION_XPATH, "Global")
-                page.wait_for_timeout(1000)
-                _type_text(frame, SOURCING_VIEW_XPATH, "RPA")
-                page.wait_for_timeout(3000)
-                _click(frame, SOURCING_SEARCH_XPATH)
-                page.wait_for_timeout(3000)
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _save_download(
-                    page,
-                    frame,
-                    SOURCING_DOWNLOAD_XPATH,
-                    os.path.join(DOWNLOAD_DIR, "02_sourcing_management_global.xlsx"),
-                )
-                page.wait_for_timeout(3000)
-
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _type_text(frame, SOURCING_REGION_XPATH, "LATAM")
-                page.wait_for_timeout(1000)
-                _click(frame, SOURCING_SEARCH_XPATH)
-                page.wait_for_timeout(3000)
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _save_download(
-                    page,
-                    frame,
-                    SOURCING_DOWNLOAD_XPATH,
-                    os.path.join(DOWNLOAD_DIR, "03_sourcing_management_latam.xlsx"),
-                )
-                page.wait_for_timeout(3000)
-
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _type_text(frame, SOURCING_REGION_XPATH, "Neutral")
-                page.wait_for_timeout(1000)
-                _click(frame, SOURCING_SEARCH_XPATH)
-                page.wait_for_timeout(3000)
-                _wait_for_loading(page)
-                page.wait_for_timeout(1000)
-                _save_download(
-                    page,
-                    frame,
-                    SOURCING_DOWNLOAD_XPATH,
-                    os.path.join(DOWNLOAD_DIR, "04_sourcing_management_neutral.xlsx"),
-                )
-                page.wait_for_timeout(3000)
-
-                # Cleanup in proper order
-                page.close()
-                context.close()
-            
             # Give files time to fully write to disk
             time.sleep(2)
-            
+
             # Verify downloads completed
             expected_files = [
                 "01_source_package_management.xlsx",
@@ -347,15 +423,15 @@ if __name__ == "__main__":
             ]
             downloaded = [f for f in expected_files if os.path.exists(os.path.join(DOWNLOAD_DIR, f))]
             print(f"Arquivos baixados: {len(downloaded)}/4")
-            
+
             messagebox.showinfo("Sucesso", "Extração realizada com sucesso !")
-            
+
             # Ask user if they want to process the files
             resposta_processar = messagebox.askquestion(
-                "Processar Arquivos", 
+                "Processar Arquivos",
                 "Deseja processar os arquivos baixados agora?"
             )
-            
+
             if resposta_processar == "yes":
                 try:
                     # Run main_organizar.py to process the files (skip confirmation dialog)
@@ -372,7 +448,7 @@ if __name__ == "__main__":
                     messagebox.showerror("Erro", f"Erro ao processar: {exc}")
             else:
                 messagebox.showinfo("Info", "Você pode processar os arquivos depois executando main_organizar.py")
-                
+
         except KeyboardInterrupt:
             print("\n\nExtração cancelada pelo usuário.")
             sys.exit(0)
