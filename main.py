@@ -3,13 +3,16 @@ import os
 import json
 import signal
 import sys
-import subprocess
 import time
 from tkinter import messagebox
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
-BASE_DIR = os.getcwd()  # Get the current working directory
+# Use the exe's own directory when frozen, otherwise the script's directory
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
 CONSOLIDATED_DIR = os.path.join(BASE_DIR, "Arquivos_Consolidados")
 URL = "https://grouppurchasing.fiat.com/irj/portal/gssm?standAlone=true&sapDocumentRenderingMode=Edge&HistoryMode=1&TarTitle=Source%20Package%20Management&windowId=WID1703160349761&NavMode=0"
@@ -89,9 +92,9 @@ async def _choose_autocomplete(page, scope, xpath, value):
 
 
 async def _wait_for_loading(page):
+    # Wait for spinner to disappear. Returns immediately if already hidden or not in DOM.
     loading = page.locator(f"xpath={LOADING_XPATH}")
     try:
-        await loading.wait_for(state="visible", timeout=60000)
         await loading.wait_for(state="hidden", timeout=600000)
     except PlaywrightTimeoutError:
         pass
@@ -103,18 +106,17 @@ async def _frame(page):
         await page.wait_for_load_state("networkidle", timeout=20000)
     except PlaywrightTimeoutError:
         pass
-    
+
     # Give extra time for iframe to be injected
     await page.wait_for_timeout(3000)
-    
+
     # Find the iframe by various possible names
     all_frames = page.frames
     target_frame_name = None
-    
+
     for frame in all_frames:
         frame_name = frame.name if frame.name else ""
-        
-        # Check for various possible frame names
+
         if frame_name == FRAME_NAME:
             target_frame_name = FRAME_NAME
             break
@@ -124,11 +126,10 @@ async def _frame(page):
         elif "Source Package Management" in frame_name or "Sourcing Management" in frame_name:
             target_frame_name = frame_name
             break
-    
+
     if not target_frame_name:
-        # If still not found, use the fallback
         target_frame_name = FRAME_NAME
-    
+
     iframe_locator = page.locator(f'iframe[name="{target_frame_name}"]')
     await iframe_locator.wait_for(state="attached", timeout=60000)
     await page.wait_for_timeout(2000)
@@ -322,18 +323,17 @@ async def async_main():
         await _click(page, LOGIN_BUTTON_XPATH)
         await page.wait_for_timeout(3000)
 
-        # --- Report 01: Source Package Management ---
+        # --- Report 01: Source Package Management --- (COMMENTED OUT FOR DEBUG)
         await _click(page, APPLICATION_XPATH)
         await page.wait_for_timeout(2000)
         await _click(page, GLOBAL_SOURCING_TOOL_XPATH)
         await page.wait_for_timeout(2000)
         await _click(page, SOURCE_PACKAGE_MANAGEMENT_XPATH)
         await page.wait_for_timeout(3000)
-
         frame = await _frame(page)
         await _click(frame, REPORTING_PACKAGE_XPATH)
         await page.wait_for_timeout(3000)
-        await _wait_for_loading(page)
+        await _wait_for_loading(frame)
         await page.wait_for_timeout(2000)
         await _click(frame, REPORTING_DISPLAY_XPATH)
         await page.wait_for_timeout(5000)
@@ -345,6 +345,7 @@ async def async_main():
         await page.wait_for_timeout(3000)
         await _click(frame, REPORTING_SEARCH_XPATH)
         await page.wait_for_timeout(5000)
+        await _wait_for_loading(frame)
         await _save_download(
             page,
             frame,
@@ -362,7 +363,7 @@ async def async_main():
         frame = await _frame(page)
         await _click(frame, SOURCE_PROCESS_DASHBOARD_XPATH)
         await page.wait_for_timeout(3000)
-        await _wait_for_loading(page)
+        await _wait_for_loading(frame)
         await page.wait_for_timeout(1000)
         await _choose_autocomplete(page, frame, SOURCING_MODIFICATION_XPATH, "Semana Anterior")
         await page.wait_for_timeout(1000)
@@ -379,9 +380,8 @@ async def async_main():
             await page.wait_for_timeout(1000)
             await _click(frame, SOURCING_SEARCH_XPATH)
             await page.wait_for_timeout(3000)
-            await _wait_for_loading(page)
+            await _wait_for_loading(frame)
             await page.wait_for_timeout(1000)
-            # await page.pause()  # DEBUG: inspect the page before download click
             await _save_download(
                 page,
                 frame,
@@ -389,7 +389,7 @@ async def async_main():
                 os.path.join(DOWNLOAD_DIR, filename),
             )
             await page.wait_for_timeout(3000)
-            await _wait_for_loading(page)  # SAP post-download processing
+            await _wait_for_loading(frame)
             await page.wait_for_timeout(1000)
 
         await page.close()
@@ -434,16 +434,8 @@ if __name__ == "__main__":
 
             if resposta_processar == "yes":
                 try:
-                    # Run main_organizar.py to process the files (skip confirmation dialog)
-                    organizar_script = os.path.join(BASE_DIR, "main_organizar.py")
-                    subprocess.run(
-                        [sys.executable, organizar_script, '--skip-confirmation'],
-                        cwd=BASE_DIR,  # Ensure it runs in the correct directory
-                        check=True
-                    )
-                except subprocess.CalledProcessError:
-                    messagebox.showerror("Erro", "Erro ao processar os arquivos!")
-                    messagebox.showinfo("Aviso", "Verifique os arquivos em Downloads_Auxiliar e tente novamente.")
+                    import main_organizar
+                    main_organizar.run(BASE_DIR)
                 except Exception as exc:
                     messagebox.showerror("Erro", f"Erro ao processar: {exc}")
             else:

@@ -29,6 +29,13 @@ Exemplo:
 }
 ```
 
+
+
+```bat
+pyinstaller --noconfirm --onefile --windowed --noconsole --name "GST Report Extraction" --icon "C:/Users/perna/Desktop/STALLANTIS/Extra-o-de-relatorio-no-GST/Credencial/icon.ico" --add-data "C:\Users\perna\AppData\Local\ms-playwright\chromium-1187\chrome-win;ms-playwright\chromium-1187\chrome-win" main.py
+
+```
+
 ## Como Executar
 ### Opcao 1: Executavel
 1. Execute `GST Report Extraction.exe`.

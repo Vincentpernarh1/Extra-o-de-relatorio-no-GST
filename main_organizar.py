@@ -3,22 +3,20 @@ import os
 import sys
 from tkinter import messagebox
 
-BASE_DIR = os.getcwd()  # Get the current working directory
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "Downloads_Auxiliar")
-CONSOLIDATED_DIR = os.path.join(BASE_DIR, "Arquivos_Consolidados")
 
-# Check if called with --skip-confirmation argument (when called from main.py)
-skip_confirmation = '--skip-confirmation' in sys.argv
+def run(base_dir=None):
+    if base_dir is None:
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
 
-if skip_confirmation:
-    resposta = 'yes'
-else:
-    resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com o tratamento?")
+    DOWNLOAD_DIR = os.path.join(base_dir, "Downloads_Auxiliar")
+    CONSOLIDATED_DIR = os.path.join(base_dir, "Arquivos_Consolidados")
 
-if resposta == 'yes':   
     try:
         # Debug info
-        print(f"BASE_DIR: {BASE_DIR}")
+        print(f"BASE_DIR: {base_dir}")
         print(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
         print(f"CONSOLIDATED_DIR: {CONSOLIDATED_DIR}")
         
@@ -216,6 +214,14 @@ if resposta == 'yes':
         messagebox.showerror("Erro", f"Erro ao executar o tratamento: {exc}")
         messagebox.showinfo("Aviso", "Tente novamente! Caso o erro persista, entre em contato com o suporte.")
 
-else:
-    # Coloque aqui o código que deseja executar se o usuário cancelar
-    messagebox.showwarning("Cancelado", "Operação cancelada!")
+
+if __name__ == "__main__":
+    skip_confirmation = '--skip-confirmation' in sys.argv
+    if skip_confirmation:
+        run()
+    else:
+        resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com o tratamento?")
+        if resposta == 'yes':
+            run()
+        else:
+            messagebox.showwarning("Cancelado", "Operação cancelada!")
