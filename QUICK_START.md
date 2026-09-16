@@ -44,7 +44,7 @@ python main.py
 build_exe.bat
 
 # Or manually
- pyinstaller --noconfirm --onefile --windowed --noconsole --name "GST Report Extraction" --icon "C:/Users/perna/Desktop/STALLANTIS/Extra-o-de-relatorio-no-GST/Credencial/icon.ico" --add-data "C:\Users\perna\AppData\Local\ms-playwright\chromium-1187\chrome-win;ms-playwright\chromium-1187\chrome-win" main.py
+ pyinstaller --noconfirm --onefile --windowed --noconsole --name "GST Report Extraction" --icon "C:/Users/perna/Desktop/STALLANTIS/Extra-o-de-relatorio-no-GST/Credencial/icon.ico" --add-data "C:\Users\perna\AppData\Local\ms-playwright\chromium-1228\chrome-win64;ms-playwright\chromium-1228\chrome-win64" main.py
 ```
 
 **Output:** `dist\GST Report Extraction.exe`
@@ -121,7 +121,7 @@ Check the Playwright version in your AppData:
 C:\Users\perna\AppData\Local\ms-playwright\
 ```
 
-If you see `chromium-1188` instead of `chromium-1187`, update in:
+If you see a different version than `chromium-1228`, update in:
 1. [main.py](main.py#L156) → `get_playwright_browser_path()` function
 2. [build_exe.bat](build_exe.bat#L15) → `--add-data` parameter
 

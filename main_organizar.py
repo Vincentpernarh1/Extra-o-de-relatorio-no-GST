@@ -133,7 +133,7 @@ def run(base_dir=None, log=print, progress=lambda value: None):
         
         # Select columns that actually exist
         required_cols_spm = ["Source Package #", "Engineering Unit", "Descrição", "Modelo", 
-                             "Version", "Tipo", "Initiator", "Nome do Comprador 1", "Status"]
+                             "Version", "Tipo", "Initiator", "Nome do Comprador", "Status"]
         available_cols_spm = [col for col in required_cols_spm if col in df_source_package_mananegement_filtred.columns]
         
         if available_cols_spm:

@@ -29,12 +29,41 @@ Exemplo:
 }
 ```
 
+## Build do Executavel (.exe)
 
-
-```bat
-pyinstaller --noconfirm --onefile --windowed --noconsole --name "GST Report Extraction" --icon "C:/Users/perna/Desktop/STALLANTIS/Extra-o-de-relatorio-no-GST/Credencial/icon.ico" --add-data "C:\Users\perna\AppData\Local\ms-playwright\chromium-1187\chrome-win;ms-playwright\chromium-1187\chrome-win" main.py
-
+### Pre-requisitos
+```bash
+pip install pyinstaller
+playwright install chromium
 ```
+
+Antes de gerar o build, confirme que o caminho abaixo existe (ajuste o numero de versao do chromium se for diferente):
+```
+C:\Users\<usuario>\AppData\Local\ms-playwright\chromium-1228\chrome-win64\chrome.exe
+```
+Se a versao for diferente, atualize tanto o comando abaixo quanto `get_playwright_browser_path()` em `main.py`.
+
+### Comando de build
+Execute na pasta do projeto:
+```bat
+pyinstaller --noconfirm --onefile --windowed --noconsole --name "GST Report Extraction" --icon "C:/Users/perna/Desktop/STALLANTIS/Extra-o-de-relatorio-no-GST/Credencial/icon.ico" --add-data "C:\Users\perna\AppData\Local\ms-playwright\chromium-1228\chrome-win64;ms-playwright\chromium-1228\chrome-win64" main.py
+```
+
+O executavel e gerado em `dist\GST Report Extraction.exe`.
+
+### Distribuicao para outra maquina
+Copie junto com o `.exe`:
+```
+GST Report Extraction.exe
+Credencial/
+  ├── usuario.json
+  └── icon.ico
+```
+As pastas `Downloads_Auxiliar/` e `Arquivos_Consolidados/` sao criadas automaticamente na primeira execucao.
+
+### Problemas comuns no build
+- **"Chromium executable not found"**: a versao do chromium instalada localmente (`%LOCALAPPDATA%\ms-playwright\`) mudou. Atualize o numero de versao e o nome da pasta (`chrome-win` vs `chrome-win64`) no comando de build e em `get_playwright_browser_path()`.
+- **.exe maior que 200MB**: esperado, o Chromium bundled ocupa ~150-200MB.
 
 ## Como Executar
 ### Opcao 1: Executavel

@@ -212,15 +212,15 @@ def get_playwright_browser_path():
     if getattr(sys, 'frozen', False):
         # Running in bundled .exe
         base_path = sys._MEIPASS
-        chromium_path = os.path.join(base_path, "ms-playwright", "chromium-1187", "chrome-win", "chrome.exe")
+        chromium_path = os.path.join(base_path, "ms-playwright", "chromium-1228", "chrome-win64", "chrome.exe")
     else:
         # Running in development
         base_path = os.path.join(os.path.expanduser("~"), "AppData", "Local")
         chromium_path = os.path.join(
             base_path,
             "ms-playwright",
-            "chromium-1187",
-            "chrome-win",
+            "chromium-1228",
+            "chrome-win64",
             "chrome.exe"
         )
    
@@ -255,10 +255,27 @@ async def _launch_browser(playwright):
                 ) from exc
 
 
+async def _maximize_window(context, page):
+    """--start-maximized only affects Chromium's initial default window;
+    context.new_page() opens a brand-new window/target that never inherits
+    it. Force the actual window via CDP instead, which works regardless of
+    how the page was created."""
+    try:
+        cdp = await context.new_cdp_session(page)
+        window_info = await cdp.send("Browser.getWindowForTarget")
+        await cdp.send("Browser.setWindowBounds", {
+            "windowId": window_info["windowId"],
+            "bounds": {"windowState": "maximized"},
+        })
+    except Exception:
+        pass
+
+
 async def _new_page(context):
     page = await context.new_page()
     page.set_default_timeout(20000)
     page.set_default_navigation_timeout(600000)
+    await _maximize_window(context, page)
     return page
 
 
