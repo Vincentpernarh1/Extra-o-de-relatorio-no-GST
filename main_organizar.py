@@ -1,39 +1,89 @@
 import pandas as pd
 import os
 import sys
+import tkinter as tk
 from tkinter import messagebox
 
+# When built/launched as a windowed .exe, sys.stdout/stderr are None and any
+# print() raises AttributeError, killing the process before anything shows.
+if getattr(sys, "frozen", False) and (sys.stdout is None or sys.stderr is None):
+    _log_path = os.path.join(os.path.dirname(sys.executable), "rpa_log.txt")
+    _log_file = open(_log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _log_file
+    sys.stderr = _log_file
 
-def run(base_dir=None):
+
+def _dialog_root():
+    """Creates an invisible-but-mapped Tk root forced to the foreground so
+    message boxes don't end up hidden behind the browser or other windows.
+    A withdrawn (unmapped) root can make its transient dialog fail to paint
+    at all, so we keep the root "shown" via 0 alpha instead of withdraw()."""
+    root = tk.Tk()
+    root.geometry("1x1+0+0")
+    root.attributes("-alpha", 0.0)
+    root.attributes("-topmost", True)
+    root.deiconify()
+    root.lift()
+    root.update()
+    return root
+
+
+def ask_question(title, message):
+    root = _dialog_root()
+    try:
+        return messagebox.askquestion(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def show_info(title, message):
+    root = _dialog_root()
+    try:
+        messagebox.showinfo(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def show_error(title, message):
+    root = _dialog_root()
+    try:
+        messagebox.showerror(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def show_warning(title, message):
+    root = _dialog_root()
+    try:
+        messagebox.showwarning(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def run(base_dir=None, log=print, progress=lambda value: None):
     if base_dir is None:
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.getcwd()
 
     DOWNLOAD_DIR = os.path.join(base_dir, "Downloads_Auxiliar")
     CONSOLIDATED_DIR = os.path.join(base_dir, "Arquivos_Consolidados")
 
     try:
-        # Debug info
-        print(f"BASE_DIR: {base_dir}")
-        print(f"DOWNLOAD_DIR: {DOWNLOAD_DIR}")
-        print(f"CONSOLIDATED_DIR: {CONSOLIDATED_DIR}")
-        
         # Ensure consolidated directory exists
         os.makedirs(CONSOLIDATED_DIR, exist_ok=True)
-        
+        progress(5)
+
         # Check if there are any Excel files to process
         if not os.path.exists(DOWNLOAD_DIR):
             raise FileNotFoundError(f"Pasta {DOWNLOAD_DIR} não encontrada!")
-        
+
         excel_files = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith('.xlsx')]
-        print(f"Arquivos encontrados: {excel_files}")
-        
+        log(f"Arquivos encontrados: {len(excel_files)}")
+
         if len(excel_files) == 0:
             raise FileNotFoundError("Nenhum arquivo Excel encontrado em Downloads_Auxiliar!")
-        
-        print(f"Processando {len(excel_files)} arquivo(s) Excel...")
+
+        log(f"Processando {len(excel_files)} arquivo(s) Excel...")
+        progress(20)
                 
         def ler_excel_e_concatenar(caminho_pasta, x, y):
             # Lista todos os arquivos na pasta especificada com a extensão .xlsx
@@ -155,6 +205,7 @@ def run(base_dir=None):
 
         # Salve o arquivo Excel.
         writer.close()
+        progress(60)
 
 
 
@@ -206,22 +257,30 @@ def run(base_dir=None):
 
         # Salve o arquivo Excel.
         writer.close()
+        progress(95)
 
-        messagebox.showinfo("Sucesso", "Tratamento realizado com sucesso!")
+        log("Tratamento realizado com sucesso!")
+        progress(100)
+        return True
 
     except Exception as exc:
-        print(f"Erro detalhado: {exc}")
-        messagebox.showerror("Erro", f"Erro ao executar o tratamento: {exc}")
-        messagebox.showinfo("Aviso", "Tente novamente! Caso o erro persista, entre em contato com o suporte.")
+        log(f"Erro ao executar o tratamento: {exc}")
+        return False
 
 
 if __name__ == "__main__":
     skip_confirmation = '--skip-confirmation' in sys.argv
     if skip_confirmation:
-        run()
+        success = run()
     else:
-        resposta = messagebox.askquestion("Confirmação", "Deseja prosseguir com o tratamento?")
+        resposta = ask_question("Confirmação", "Deseja prosseguir com o tratamento?")
         if resposta == 'yes':
-            run()
+            success = run()
         else:
-            messagebox.showwarning("Cancelado", "Operação cancelada!")
+            show_warning("Cancelado", "Operação cancelada!")
+            success = None
+
+    if success is True:
+        show_info("Sucesso", "Tratamento realizado com sucesso!")
+    elif success is False:
+        show_error("Erro", "Erro ao executar o tratamento! Tente novamente ou entre em contato com o suporte.")
